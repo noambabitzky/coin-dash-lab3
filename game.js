@@ -1,10 +1,29 @@
 /* global Phaser, COIN_DASH */
+const HIGH_SCORE_KEY = 'coinDash.highScore';
+
+// Storage can be unavailable (private mode, blocked site data), so fall back to 0.
+function loadHighScore() {
+  try {
+    return Number(localStorage.getItem(HIGH_SCORE_KEY)) || 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function saveHighScore(score) {
+  try {
+    localStorage.setItem(HIGH_SCORE_KEY, String(score));
+  } catch (e) { /* the record just won't persist */ }
+}
+
 class CoinDash extends Phaser.Scene {
   constructor() { super('CoinDash'); }
 
   create() {
     const c = COIN_DASH;
     this.score = 0;
+    this.highScore = loadHighScore();
+    this.seconds = c.roundSeconds;
     this.finished = false;
     this.paused = false;
     this.deadline = this.time.now + c.roundSeconds * 1000;
@@ -79,19 +98,30 @@ class CoinDash extends Phaser.Scene {
       - Number(this.cursors.up.isDown || this.keys.W.isDown);
     const direction = new Phaser.Math.Vector2(dx, dy).normalize().scale(COIN_DASH.playerSpeed);
     this.player.body.setVelocity(direction.x, direction.y);
-    const seconds = Math.max(0, Math.ceil((this.deadline - this.time.now) / 1000));
-    this.hud.setText(`Coins: ${this.score}                       Time: ${seconds}s`);
-    if (seconds === 0) this.finish('Time is up!');
+    this.seconds = Math.max(0, Math.ceil((this.deadline - this.time.now) / 1000));
+    this.renderHud();
+    if (this.seconds === 0) this.finish('Time is up!');
+  }
+
+  renderHud() {
+    this.hud.setText(`Coins: ${this.score}   Best: ${this.highScore}             Time: ${this.seconds}s`);
   }
 
   finish(reason) {
     if (this.finished) return;
     this.finished = true;
     this.physics.pause();
+    const isRecord = this.score > this.highScore;
+    if (isRecord) {
+      this.highScore = this.score;
+      saveHighScore(this.highScore);
+    }
+    const best = isRecord ? 'New high score!' : `High score: ${this.highScore}`;
+    this.renderHud();
     const c = COIN_DASH;
-    this.add.rectangle(c.width / 2, c.height / 2, 460, 150, 0x0a1120, 0.95);
+    this.add.rectangle(c.width / 2, c.height / 2, 460, 190, 0x0a1120, 0.95);
     this.add.text(c.width / 2, c.height / 2,
-      `${reason}\n${this.score} coins collected\nPress R to try again`,
+      `${reason}\n${this.score} coins collected\n${best}\nPress R to try again`,
       { font: '24px monospace', color: '#ffffff', align: 'center', lineSpacing: 12 }
     ).setOrigin(0.5);
   }
